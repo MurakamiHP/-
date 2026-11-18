@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#176b5b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="交換時期管理">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>交換時期お知らせ</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17211f;background:#f4f7f6}
+*{box-sizing:border-box}body{margin:0;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{background:#176b5b;color:white;padding:22px 18px 18px}h1{font-size:21px;margin:0 0 5px}header p{margin:0;font-size:13px;opacity:.9}
+main{max-width:760px;margin:auto;padding:14px}
+.panel{background:white;border-radius:16px;padding:16px;margin:0 0 13px;box-shadow:0 2px 10px #183b3010}
+h2{font-size:17px;margin:0 0 12px}.muted{color:#64736e;font-size:12px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 5px}
+input,textarea,select{width:100%;padding:12px;border:1px solid #d4dfdb;border-radius:10px;font:inherit;background:#fff}
+textarea{min-height:65px;resize:vertical}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{border:0;border-radius:11px;padding:12px 14px;font:600 14px inherit;cursor:pointer;background:#176b5b;color:white}
+button.secondary{background:#e8f1ee;color:#176b5b}button.danger{background:#fff0ef;color:#b33d35}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.item{border:1px solid #e1e9e6;border-radius:13px;padding:13px;margin-top:10px}
+.itemtop{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.item h3{font-size:16px;margin:0 0 5px}.due{font-size:13px;color:#176b5b;font-weight:700}
+.tag{display:inline-block;font-size:11px;border-radius:20px;padding:4px 8px;background:#eaf3ef;color:#176b5b;margin-top:6px}
+.empty{text-align:center;padding:25px 8px;color:#687873}
+.notice{background:#fff8e7;border:1px solid #f1dfad;padding:11px;border-radius:10px;font-size:12px;line-height:1.6}
+small{font-size:11px;color:#64736e}
+footer{text-align:center;color:#74817c;font-size:11px;padding:10px 20px 28px}
+@media(max-width:430px){.grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header><h1>交換時期お知らせ</h1><p>交換する物を登録して、次の交換日を管理できます</p></header>
+<main>
+<section class="panel">
+<h2>交換品を登録・編集</h2>
+<form id="form">
+<input type="hidden" id="editId">
+<label for="name">交換する物の名前 *</label><input id="name" required maxlength="80" placeholder="例：エアコンフィルター">
+<div class="grid">
+<div><label for="due">次回交換予定日 *</label><input id="due" type="date" required></div>
+<div><label for="cycle">交換周期</label><select id="cycle"><option value="0">設定しない</option><option value="30">毎月</option><option value="90">3か月</option><option value="180">6か月</option><option value="365">1年</option><option value="730">2年</option><option value="custom">その他（日数）</option></select></div>
+</div>
+<div id="customWrap" hidden><label for="customDays">その他の周期（日）</label><input id="customDays" type="number" min="1" max="36500" placeholder="例：120"></div>
+<label for="offsets">通知タイミング（交換日の何日前か。複数可）</label>
+<input id="offsets" value="30,7,1" placeholder="例：30,7,1,0">
+<small>カンマ区切りで入力。0は交換日当日です。</small>
+<label for="memo">メモ（任意）</label><textarea id="memo" placeholder="型番、購入先など"></textarea>
+<div class="actions"><button type="submit" id="saveBtn">登録する</button><button type="button" class="secondary" id="cancelEdit" hidden>編集をやめる</button></div>
+</form>
+</section>
+<section class="panel">
+<h2>登録済みの交換品</h2>
+<div id="items"></div>
+</section>
+<section class="panel">
+<h2>バックアップ・通知カレンダー</h2>
+<p class="muted">データはこのiPhoneのブラウザ内に保存されます。機種変更やブラウザデータ削除に備えて、定期的にバックアップしてください。</p>
+<div class="actions">
+<button class="secondary" id="exportJson">データをバックアップ</button>
+<button class="secondary" id="importBtn">バックアップを復元</button>
+<input type="file" id="importFile" accept="application/json" hidden>
+<button id="calendarBtn">通知カレンダーを書き出す</button>
+</div>
+<p class="notice">通知カレンダーを書き出したら、iPhoneの「ファイル」アプリで .ics ファイルを開き、カレンダーに追加してください。各交換品の通知予定がカレンダーに登録されます。登録後はiPhoneのカレンダー通知設定を確認してください。</p>
+</section>
+<section class="panel">
+<h2>使い方・注意</h2>
+<ul class="muted" style="padding-left:20px;line-height:1.8">
+<li>登録・編集した内容は端末内に保存します。</li>
+<li>カレンダー通知は、アプリを閉じていてもiPhoneのカレンダーが通知します。</li>
+<li>交換予定日や通知日を変更した場合は、通知カレンダーを再書き出しし、古い予定をカレンダーから削除してから再登録してください。</li>
+<li>アプリを削除したりSafariのWebサイトデータを消去すると、保存データが消える場合があります。</li>
+</ul>
+</section>
+</main>
+<footer>交換時期お知らせアプリ · 端末内保存</footer>
+<script>
+const KEY='exchange-reminder-items-v1';
+let items=load();
+const $=id=>document.getElementById(id);
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return []}}
+function save(){localStorage.setItem(KEY,JSON.stringify(items));render()}
+function dateAdd(s,n){let d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return d}
+function fmt(s){if(!s)return '';let [y,m,d]=s.split('-');return `${y}年${Number(m)}月${Number(d)}日`}
+function today(){let d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){
+ const root=$('items');
+ if(!items.length){root.innerHTML='<div class="empty">まだ登録されていません。上のフォームから登録してください。</div>';return}
+ root.innerHTML=items.slice().sort((a,b)=>a.due.localeCompare(b.due)).map(x=>{
+ let diff=Math.round((new Date(x.due+'T12:00:00')-new Date(today()+'T12:00:00'))/86400000);
+ let status=diff<0?`${-diff}日超過`:diff===0?'本日交換':`あと${diff}日`;
+ return `<article class="item"><div class="itemtop"><div><h3>${escapeHtml(x.name)}</h3><div class="due">${fmt(x.due)} · ${status}</div><span class="tag">通知 ${x.offsets.join('・')}日前</span></div></div>${x.memo?`<p class="muted">${escapeHtml(x.memo)}</p>`:''}<div class="actions"><button class="secondary" onclick="editItem('${x.id}')">編集</button><button class="secondary" onclick="completeItem('${x.id}')">交換済みにする</button><button class="danger" onclick="deleteItem('${x.id}')">削除</button></div></article>`
+ }).join('');
+}
+$('cycle').addEventListener('change',()=>{$('customWrap').hidden=$('cycle').value!=='custom'});
+$('form').addEventListener('submit',e=>{
+ e.preventDefault();
+ const offsets=$('offsets').value.split(',').map(v=>Number(v.trim())).filter(v=>Number.isInteger(v)&&v>=0&&v<=3650);
+ if(!offsets.length){alert('通知タイミングを0以上の日数で入力してください。');return}
+ let id=$('editId').value||crypto.randomUUID();
+ let old=items.find(x=>x.id===id);
+ let cyc=$('cycle').value==='custom'?Number($('customDays').value):Number($('cycle').value);
+ if($('cycle').value==='custom'&&(!Number.isInteger(cyc)||cyc<1)){alert('交換周期の日数を入力してください。');return}
+ let obj={id,name:$('name').value.trim(),due:$('due').value,cycle:cyc,offsets:[...new Set(offsets)].sort((a,b)=>b-a),memo:$('memo').value.trim(),history:old?.history||[]};
+ if(!obj.name||!obj.due){alert('名前と交換予定日を入力してください。');return}
+ if(old)items=items.map(x=>x.id===id?obj:x);else items.push(obj);
+ save();resetForm();alert('保存しました。');
+});
+function resetForm(){$('form').reset();$('editId').value='';$('customWrap').hidden=true;$('saveBtn').textContent='登録する';$('cancelEdit').hidden=true}
+window.editItem=id=>{let x=items.find(v=>v.id===id);if(!x)return;$('editId').value=x.id;$('name').value=x.name;$('due').value=x.due;$('memo').value=x.memo;$('offsets').value=x.offsets.join(',');if([0,30,90,180,365,730].includes(x.cycle))$('cycle').value=String(x.cycle);else{$('cycle').value='custom';$('customWrap').hidden=false;$('customDays').value=x.cycle}$('saveBtn').textContent='変更を保存';$('cancelEdit').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
+$('cancelEdit').onclick=resetForm;
+window.deleteItem=id=>{if(confirm('この交換品を削除しますか？')){items=items.filter(x=>x.id!==id);save()}}
+window.completeItem=id=>{let x=items.find(v=>v.id===id);if(!x)return;if(!confirm('交換済みにして、次回交換日を更新しますか？'))return;x.history.push({date:today(),due:x.due});if(x.cycle>0){let d=new Date(x.due+'T12:00:00');d.setDate(d.getDate()+x.cycle);x.due=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}else{x.due=today()}save()}
+function download(name,content,type){let blob=new Blob([content],{type});let url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+$('exportJson').onclick=()=>download('交換時期バックアップ.json',JSON.stringify(items,null,2),'application/json');
+$('importBtn').onclick=()=>$('importFile').click();
+$('importFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let data=JSON.parse(await f.text());if(!Array.isArray(data))throw Error();if(confirm('現在の登録内容をバックアップの内容で置き換えますか？')){items=data;save();alert('復元しました')}}catch{alert('バックアップファイルを読み込めませんでした')}e.target.value=''};
+function icsEscape(s){return String(s).replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n')}
+function ymd(s){return s.replaceAll('-','')}
+$('calendarBtn').onclick=()=>{
+ if(!items.length){alert('先に交換品を登録してください');return}
+ let lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Exchange Reminder//JP','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+ for(const x of items){for(const n of x.offsets){let d=dateAdd(x.due,-n);let ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;let uid=`${x.id}-${n}@exchange-reminder.local`;let title=n===0?`${x.name} 交換日`:`${x.name} 交換日の${n}日前`;lines.push('BEGIN:VEVENT',`UID:${uid}`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'')}`,`DTSTART;VALUE=DATE:${ds}`,`DTEND;VALUE=DATE:${ymd(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()+1).padStart(2,'0'))}`,`SUMMARY:${icsEscape(title)}`,`DESCRIPTION:${icsEscape('交換予定日：'+fmt(x.due)+'\\n'+(x.memo||''))}`,'BEGIN:VALARM','TRIGGER:-PT9H','ACTION:DISPLAY',`DESCRIPTION:${icsEscape(title)}`,'END:VALARM','END:VEVENT')}}
+ lines.push('END:VCALENDAR');download('交換時期通知.ics',lines.join('\r\n'),'text/calendar;charset=utf-8');
+};
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+render();
+</script>
+</body></html>
